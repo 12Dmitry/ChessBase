@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\ChessBase.Analyz\ChessBase.Analyz.csproj" />
+      <ProjectReference Include="..\ChessBase.Api\ChessBase.Api.csproj" />
+      <ProjectReference Include="..\ChessBase.Data\ChessBase.Data.csproj" />
+    </ItemGroup>
+
+</Project>
