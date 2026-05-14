@@ -1,21 +1,75 @@
 ﻿using Chess;
+using ChessBase.Data;
 
 namespace ChessBase;
 
 public class GameAnalyzer(IEngine engine)
 {
-    public async Task<List<EvalResultToWhiteScore>> AnalyzeAsync(ChessBoard chessBoard, bool userIsWhite)
+    public async Task<AnalysisReport> AnalyzePgnAsync(string pgn, string username)
+    {
+        var board = ChessBoard.LoadFromPgn(pgn);
+        
+        var ecoCode = board.Headers.GetValueOrDefault("ECO", "0");
+        var openingName = board.Headers.GetValueOrDefault("Opening", "Unknown");
+    
+        var userIsWhite =
+            username.Equals(board.Headers.GetValueOrDefault("White", ""), StringComparison.OrdinalIgnoreCase); //todo if hasn't header -> wrong behaviour
+        var gameResult = MapResult(board.Headers.GetValueOrDefault("Result", "*"), userIsWhite);
+        
+        var evalMoves = ConvertToEvalMoves(await EngineAnalyzeToWhiteScoreAsync(board, userIsWhite));
+
+        return new AnalysisReport
+        {
+            EcoCode = ecoCode,
+            OpeningName = openingName,
+            Result = gameResult,
+            TotalAccuracy = ChessMath.CalculateGameAccuracy(evalMoves),
+            Moves = evalMoves.Select((move, i) => new MoveAnalysis()
+            {
+                EvalWhite = move.EvalWhite,
+                Accuracy = move.Accuracy.MoveAccuracyToWhite,
+                Category = move.Accuracy.Type.ToString(),
+                GameStage = DetectStage(board, i).ToString(),
+                Notation = move.Notation,
+                MoveNumber = ++i
+            }).ToList()
+        };
+    }
+    
+    private string MapResult(string rawResult, bool isWhite)
+    {
+        if (rawResult == "1/2-1/2") return "Draw";
+        if (rawResult == "1-0") return isWhite ? "Win" : "Loss";
+        if (rawResult == "0-1") return isWhite ? "Loss" : "Win";
+        return "Unknown";
+    }
+    
+    private List<EvalMove> ConvertToEvalMoves(List<EvalResultToWhiteScore> moves)
+    {
+        var evalMoves = new List<EvalMove>();
+        var prevEvalCp = 0.0;
+        foreach (var move in moves)
+        {
+            var accuracy = ChessMath.GetAccuracy(move.EvalWhite, prevEvalCp);
+            evalMoves.Add(new EvalMove { Accuracy = accuracy, EvalWhite = move.EvalWhite, Notation = move.Notation });
+            prevEvalCp = move.EvalWhite;
+        }
+
+        return evalMoves;
+    }
+
+    private async Task<List<EvalResultToWhiteScore>> EngineAnalyzeToWhiteScoreAsync(ChessBoard board, bool userIsWhite)
     {
         var moves = new List<EvalResultToWhiteScore>();
 
-        for (var i = 0; i < chessBoard.ExecutedMoves.Count; i++)
+        for (var i = 0; i < board.ExecutedMoves.Count; i++)
         {
             var isWhiteTurn = i % 2 == 0;
             if (IsNotMyMove()) continue;
 
-            chessBoard.MoveIndex = i;
+            board.MoveIndex = i;
 
-            var analysis = await engine.GetEvaluationAsync(chessBoard.ToFen());
+            var analysis = await engine.GetEvaluationAsync(board.ToFen());
 
             // Здесь мы получим что-то вроде: "info depth 10... score cp 15..."
             Console.WriteLine($"Ход {i}: {analysis}");
@@ -27,45 +81,20 @@ public class GameAnalyzer(IEngine engine)
 
         return moves;
     }
-    
-    public string GetGameStage(ChessBoard board)
+
+    private static GameStage DetectStage(ChessBoard board, int moveIndex)
     {
-        if (board.ExecutedMoves.Count < 20) return "Opening";
+        board.MoveIndex = moveIndex;
+        if (board.ExecutedMoves.Count < 22) 
+            return GameStage.Opening;
 
-        // Считаем баллы фигур на доске
-        int npm = board.Pieces.Values
-            .Where(p => p.Type!= PieceType.Pawn && p.Type!= PieceType.King)
-            .Sum(p => p.Type switch {
-                PieceType.Queen => 9,
-                PieceType.Rook => 5,
-                PieceType.Bishop => 3,
-                PieceType.Knight => 3,
-                _ => 0
-            });
+        const int totalPiceMaterial = 31 * 2; 
 
-        return npm <= 24? "Endgame" : "Middlegame";
-    }
-    
-    public string DetectStage(ChessBoard board) // todo доделатт
-    {
-        if (board.ExecutedMoves.Count < 20) return "Opening";
+        var whiteLost = board.CapturedWhite.Sum(p => p.Type.Weight());
+        var blackLost = board.CapturedBlack.Sum(p => p.Type.Weight());
 
-        // Считаем все фигуры на доске через свойства Gera.Chess
-        board.
-        int materialCount = board.Pieces.Values
-            .Where(p => p.Type!= PieceType.Pawn && p.Type!= PieceType.King)
-            .Sum(p => GetPieceValue(p.Type));
+        var totalNpm = totalPiceMaterial - whiteLost - blackLost;
 
-        return materialCount <= 24? "Endgame" : "Middlegame";
-    }
-
-    private List<EvalMove> Convert(List<EvalResultToWhiteScore> moves)
-    {
-        moves.
-    }
-
-    public async Task<object> AnalyzePgnAsync(object pgn)
-    {
-        throw new NotImplementedException();
-    }
+        return totalNpm <= 24 ? GameStage.Endgame : GameStage.Middlegame;
+    }    
 }

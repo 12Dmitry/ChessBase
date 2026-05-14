@@ -1,9 +1,24 @@
-﻿namespace ChessBase;
+﻿using Chess;
 
-public struct EvalResultToWhiteScore
+namespace ChessBase;
+
+public struct EvalResultToWhiteScore(double evalWhite)
 {
-    public double MyEvalCp { get; set; } // оценка лучшего возможного хода Stockfish
-    public string BestMove { get; set; }
+    public string Notation { get; set; } = ""; // Например, "e4" todo add
+    public double EvalWhite { get; set; } = evalWhite; // оценка лучшего возможного хода Stockfish
+}
+
+public struct EvalMove
+{
+    public string Notation { get; set; } // Например, "e4"
+    public double EvalWhite { get; set; }
+    public Accuracy Accuracy { get; set; }
+}
+
+public struct Accuracy
+{
+    public double MoveAccuracyToWhite { get; set; }
+    public MoveCategory Type { get; set; }
 }
 
 public enum MoveCategory
@@ -16,8 +31,19 @@ public enum MoveCategory
     Blunder
 }
 
-public struct EvalMove
+public enum GameStage
 {
-    public double WinProbabilityToWhiteScore { get; set; }
-    public MoveCategory Type { get; set; }
+    Opening,
+    Middlegame,
+    Endgame
+}
+
+public static class PieceTypeExtensions
+{
+    public static int Weight(this PieceType type)
+    {
+        if (type == PieceType.Queen)  return 9;
+        if (type == PieceType.Rook)   return 5;
+        return type == PieceType.Bishop || type == PieceType.Knight? 3 : 0;
+    }
 }

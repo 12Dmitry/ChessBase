@@ -13,6 +13,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\ChessBase.Api\ChessBase.Api.csproj" />
+      <ProjectReference Include="..\ChessBase.Data\ChessBase.Data.csproj" />
     </ItemGroup>
 
 </Project>

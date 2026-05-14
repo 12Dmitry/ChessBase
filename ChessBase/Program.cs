@@ -9,9 +9,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-//todo куда dto? делать ли базу в отдельный прооект?
-//todo db postql
-//todo прописать нормально api с соблюдением всех ограничений и кеширования, еще добавить cath нормально
+//todo прописать нормально api с соблюдением всех ограничений и кеширования, еще добавить cath нормально +
+// todo TEST!
+//todo check dto and upload full context
+// todo Write Test
 //todo messag queue
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -37,6 +38,6 @@ using IHost host = builder.Build();
 
 // Run the sync
 var syncService = host.Services.GetRequiredService<GameSyncService>();
-await syncService.SyncGamesAsync("your_username");
+await syncService.SyncGamesAsync("your_username"); // todo from json
 
 await host.RunAsync();

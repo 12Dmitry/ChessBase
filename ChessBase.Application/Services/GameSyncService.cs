@@ -9,31 +9,32 @@ public class GameSyncService(IChessComClient apiClient, GameAnalyzer analyzer, C
 {
     public async Task SyncGamesAsync(string username)
     {
-        // 1. Download
         var apiGames = await apiClient.GetPlayerGamesAsync(username, DateTime.Now.Year, DateTime.Now.Month);
 
         foreach (var apiGame in apiGames)
         {
-            // 2. Check Duplicates
             if (await dbContext.Games.AnyAsync(g => g.ExternalId == apiGame.Uuid))
                 continue;
 
-            // 3. Analyze
-            var analysisResult = await analyzer.AnalyzePgnAsync(apiGame.Pgn);
+            // Анализатор теперь делает всю грязную работу по парсингу PGN
+            var report = await analyzer.AnalyzePgnAsync(apiGame.Pgn, username);
 
-            // 4. Map & Save
+            // Маппинг в сущность БД
             var game = new Game 
             { 
                 ExternalId = apiGame.Uuid,
                 PgnText = apiGame.Pgn,
-                TotalAccuracy = analysisResult.Accuracy,
-                PlayedAt = new DateTime(apiGame.EndTime) // todo UTC?
-                // ... other fields
+                TotalAccuracy = report.TotalAccuracy,
+                OpeningName = report.OpeningName,
+                EcoCode = report.EcoCode,
+                Result = report.Result,
+                // Chess.com EndTime - это Unix Timestamp
+                PlayedAt = DateTimeOffset.FromUnixTimeSeconds(apiGame.EndTime).UtcDateTime,
+                Moves = report.Moves 
             };
-            
+        
             dbContext.Games.Add(game);
         }
 
         await dbContext.SaveChangesAsync();
-    }
-}
+    }}

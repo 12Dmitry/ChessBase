@@ -6,14 +6,14 @@ public static class UciParser
 {
     public static EvalResultToWhiteScore Parse(string rawOutput, bool userIsWhite)
     {
-        var result = new EvalResultToWhiteScore();
+        double result = 0;
 
         // 1. Ищем оценку в центипашках (cp)
         // Пример: "score cp 15" 
         var cpMatch = Regex.Match(rawOutput, @"score cp (-?\d+)");
         if (cpMatch.Success)
         {
-            result.MyEvalCp = double.Parse(cpMatch.Groups[1].Value);
+            result = double.Parse(cpMatch.Groups[1].Value);
         }
 
         // 2. Ищем оценку мата (mate)
@@ -21,21 +21,21 @@ public static class UciParser
         var mateMatch = Regex.Match(rawOutput, @"score mate (-?\d+)");
         if (mateMatch.Success)
         {
-            int distance = int.Parse(mateMatch.Groups[1].Value);
+            var distance = int.Parse(mateMatch.Groups[1].Value);
             // Превращаем мат в очень большое число центипашек для мат. формул
             // Если distance > 0 — мат ставит тот, чей ход. Если < 0 — ему ставят мат.
-            result.MyEvalCp = distance > 0? 10000 - distance : -10000 - distance;
+            result = distance > 0? 10000 - distance : -10000 - distance;
         }
 
         // 3. Ищем лучший ход (bestmove)
-        // Пример: "bestmove e2e4" [6]
-        var moveMatch = Regex.Match(rawOutput, @"bestmove (\w+)");
-        if (moveMatch.Success)
-        {
-            result.BestMove = moveMatch.Groups[1].Value;
-        }
+        // // Пример: "bestmove e2e4" [6]
+        // var moveMatch = Regex.Match(rawOutput, @"bestmove (\w+)");
+        // if (moveMatch.Success)
+        // {
+        //     result.BestMove = moveMatch.Groups[1].Value;
+        // }
 
-        return userIsWhite ? result : result with { MyEvalCp = result.MyEvalCp * -1 };
+        return new EvalResultToWhiteScore(userIsWhite ? result : result * -1);
     }
 }
 
@@ -45,13 +45,20 @@ public static class ChessMath
     private const double K = 0.00368208;
 
     /// <summary>
-    /// Перевод оценки движка (центипашки) в вероятность победы (0..100)
+    /// Рассчитывает общую точность партии на основе списка ходов.
     /// </summary>
-    public static double ToWinProbability(double cp)
+    public static double CalculateGameAccuracy(IEnumerable<EvalMove> moves) => // todo mb to int
+        Math.Round(moves?.DefaultIfEmpty().Average(m => m.Accuracy.MoveAccuracyToWhite) ?? 0, 2);
+
+    public static Accuracy GetAccuracy(double result, double prevResult)
     {
-        // Ограничиваем значение для стабильности функции [4]
-        double clampedCp = Math.Clamp(cp, -1000, 1000);
-        return 50 + 50 * (2 / (1 + Math.Exp(-K * clampedCp)) - 1);
+        var winProbBefore = ToWinProbability(prevResult);
+        var winProbAfter = ToWinProbability(result);
+        return new Accuracy
+        {
+            MoveAccuracyToWhite = CalculateAccuracy(winProbBefore, winProbAfter),
+            Type = GetMoveCategory(winProbBefore, winProbAfter)
+        };
     }
 
     /// <summary>
@@ -59,11 +66,11 @@ public static class ChessMath
     /// </summary>
     /// <param name="winProbBefore">Вероятность при лучшем ходе движка</param>
     /// <param name="winProbAfter">Вероятность после вашего реального хода</param>
-    public static double CalculateAccuracy(double winProbBefore, double winProbAfter)
+    private static double CalculateAccuracy(double winProbBefore, double winProbAfter)
     {
-        double diff = Math.Max(0, winProbBefore - winProbAfter);
+        var diff = Math.Max(0, winProbBefore - winProbAfter);
         // Формула нормализации точности
-        double accuracy = 103.1668 * Math.Exp(-0.04354 * diff) - 3.1669;
+        var accuracy = 103.1668 * Math.Exp(-0.04354 * diff) - 3.1669;
         return Math.Clamp(accuracy, 0, 100);
     }
 
@@ -72,7 +79,7 @@ public static class ChessMath
     /// </summary>
     public static MoveCategory GetMoveCategory(double winProbBefore, double winProbAfter)
     {
-        double loss = (winProbBefore - winProbAfter) / 100.0; // In fractions from 0 to 1
+        var loss = (winProbBefore - winProbAfter) / 100.0; // In fractions from 0 to 1
 
         return loss switch
         {
@@ -83,5 +90,15 @@ public static class ChessMath
             <= 0.20 => MoveCategory.Mistake,
             _ => MoveCategory.Blunder
         };
+    }
+
+    /// <summary>
+    /// Перевод оценки движка (центипашки) в вероятность победы (0..100)
+    /// </summary>
+    private static double ToWinProbability(double cp)
+    {
+        // Ограничиваем значение для стабильности функции [4]
+        var clampedCp = Math.Clamp(cp, -1000, 1000);
+        return 50 + 50 * (2 / (1 + Math.Exp(-K * clampedCp)) - 1);
     }
 }
