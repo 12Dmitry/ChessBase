@@ -8,11 +8,14 @@ public class ChessDbContext : DbContext
     public DbSet<MoveAnalysis> Moves { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder options)
-        => options.UseNpgsql("Host=localhost;Database=chess_db;Username=postgres;Password=0000"); //todo extend to config
+    {
+        if (!options.IsConfigured)
+        {
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Индекс для предотвращения дубликатов партий [2, 3]
         modelBuilder.Entity<Game>()
             .HasIndex(g => g.ExternalId)
             .IsUnique();

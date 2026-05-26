@@ -5,7 +5,7 @@ namespace ChessBase;
 
 public class GameAnalyzer(IEngine engine)
 {
-    public async Task<AnalysisReport> AnalyzePgnAsync(string pgn, string username)
+    public async Task<AnalysisReport> AnalyzePgnAsync(string pgn, string username) // todo test
     {
         var board = ChessBoard.LoadFromPgn(pgn);
         
@@ -22,7 +22,7 @@ public class GameAnalyzer(IEngine engine)
         {
             EcoCode = ecoCode,
             OpeningName = openingName,
-            Result = gameResult,
+            ResultForUser = gameResult,
             TotalAccuracy = ChessMath.CalculateGameAccuracy(evalMoves),
             Moves = evalMoves.Select((move, i) => new MoveAnalysis()
             {
@@ -34,28 +34,6 @@ public class GameAnalyzer(IEngine engine)
                 MoveNumber = ++i
             }).ToList()
         };
-    }
-    
-    private string MapResult(string rawResult, bool isWhite)
-    {
-        if (rawResult == "1/2-1/2") return "Draw";
-        if (rawResult == "1-0") return isWhite ? "Win" : "Loss";
-        if (rawResult == "0-1") return isWhite ? "Loss" : "Win";
-        return "Unknown";
-    }
-    
-    private List<EvalMove> ConvertToEvalMoves(List<EvalResultToWhiteScore> moves)
-    {
-        var evalMoves = new List<EvalMove>();
-        var prevEvalCp = 0.0;
-        foreach (var move in moves)
-        {
-            var accuracy = ChessMath.GetAccuracy(move.EvalWhite, prevEvalCp);
-            evalMoves.Add(new EvalMove { Accuracy = accuracy, EvalWhite = move.EvalWhite, Notation = move.Notation });
-            prevEvalCp = move.EvalWhite;
-        }
-
-        return evalMoves;
     }
 
     private async Task<List<EvalResultToWhiteScore>> EngineAnalyzeToWhiteScoreAsync(ChessBoard board, bool userIsWhite)
@@ -71,15 +49,34 @@ public class GameAnalyzer(IEngine engine)
 
             var analysis = await engine.GetEvaluationAsync(board.ToFen());
 
-            // Здесь мы получим что-то вроде: "info depth 10... score cp 15..."
-            Console.WriteLine($"Ход {i}: {analysis}");
-
             moves.Add(UciParser.Parse(analysis, isWhiteTurn));
 
             bool IsNotMyMove() => !((!userIsWhite && !isWhiteTurn) || (userIsWhite && isWhiteTurn));
         }
 
         return moves;
+    }
+
+    private string MapResult(string rawResult, bool isWhite)
+    {
+        if (rawResult == "1/2-1/2") return "Draw";
+        if (rawResult == "1-0") return isWhite ? "Win" : "Loss";
+        if (rawResult == "0-1") return isWhite ? "Loss" : "Win";
+        return "Unknown"; // todo Enum?
+    }
+
+    private List<EvalMove> ConvertToEvalMoves(List<EvalResultToWhiteScore> moves)
+    {
+        var evalMoves = new List<EvalMove>();
+        var prevEvalCp = 0.0;
+        foreach (var move in moves)
+        {
+            var accuracy = ChessMath.GetAccuracy(move.EvalWhite, prevEvalCp);
+            evalMoves.Add(new EvalMove { Accuracy = accuracy, EvalWhite = move.EvalWhite, Notation = move.Notation });
+            prevEvalCp = move.EvalWhite;
+        }
+
+        return evalMoves;
     }
 
     private static GameStage DetectStage(ChessBoard board, int moveIndex)
