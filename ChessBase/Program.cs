@@ -9,17 +9,24 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-//todo прописать нормально api с соблюдением всех ограничений и кеширования, еще добавить cath нормально +
-// todo TEST!
+//todo api с соблюдением всех ограничений и кеширования
 //todo check dto and upload full context
+// todo add logs revert it from console.WL
 // todo Write Test
-//todo messag queue
+//todo messag queue?
 
 var builder = Host.CreateApplicationBuilder(args);
 
 // 1. Data Layer
 builder.Services.AddDbContext<ChessDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,                     
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            null
+        )
+    ));
 
 // 2. Infrastructure (Api Client)
 builder.Services.AddHttpClient<IChessComClient, ChessComClient>(client => {
@@ -28,16 +35,55 @@ builder.Services.AddHttpClient<IChessComClient, ChessComClient>(client => {
 });
 
 // 3. Analyz Layer
-builder.Services.AddScoped<GameAnalyzer>();
-// builder.Services.AddScoped<IEngine, StockfishEngine>();
+builder.Services.AddTransient<GameAnalyzer>();
+builder.Services.AddTransient<IEngine, StockfishEngine>();
 
 // 4. Application Layer
-builder.Services.AddScoped<GameSyncService>();
+builder.Services.Configure<StockfishOptions>(builder.Configuration.GetSection("Stockfish"));
+builder.Services.Configure<ChessComOptions>(builder.Configuration.GetSection("ChessCom"));
+builder.Services.AddTransient<GameSyncService>();
 
 using IHost host = builder.Build();
 
-// Run the sync
-var syncService = host.Services.GetRequiredService<GameSyncService>();
-await syncService.SyncGamesAsync("your_username"); // todo from json
+using (var startupScope = host.Services.CreateScope())
+{
+    var context = startupScope.ServiceProvider.GetRequiredService<ChessDbContext>();
+    
+    var maxRetries = 5;
+    var delaySeconds = 3;
+    
+    for (var i = 1; i <= maxRetries; i++)
+    {
+        try
+        {
+            Console.WriteLine("Попытка применить миграции к базе данных...");
+            await context.Database.MigrateAsync();
+            Console.WriteLine("База данных успешно обновлена и готова к работе!");
+            break;
+        }
+        catch (Exception ex) when (i < maxRetries)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"База данных еще не готова (Попытка {i} из {maxRetries}). Ожидание {delaySeconds} сек... Ошибка: {ex.Message}");
+            Console.ResetColor();
+            
+            await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+        }
+        catch (Exception)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("Критическая ошибка: Не удалось подключиться к базе данных после нескольких попыток.");
+            Console.ResetColor();
+            throw;
+        }
+    }
+}
+
+using (IServiceScope scope = host.Services.CreateScope())
+{
+    var syncService = scope.ServiceProvider.GetRequiredService<GameSyncService>();
+    
+    await syncService.SyncGamesAsync();
+} 
 
 await host.RunAsync();

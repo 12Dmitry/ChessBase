@@ -12,6 +12,5 @@ public class Game
     public string EcoCode { get; set; } // Код дебюта (например, B20)
     public DateTime PlayedAt { get; set; }
     
-    // Навигационное свойство для связи 1-ко-многим
     public List<MoveAnalysis> Moves { get; set; } = new();
 }

@@ -9,34 +9,30 @@ public class ChessComClient : IChessComClient
     public ChessComClient(HttpClient httpClient)
     {
         _httpClient = httpClient;
-        // Настройка User-Agent обязательна для Chess.com API
         if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
         {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("Настройка User-Agent обязательна для Chess.com API");
+            Console.ResetColor();
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "ChessBaseApp/1.0 (contact: your-email@example.com)");
         }
     }
 
     public async Task<List<GameResponse>> GetPlayerGamesAsync(string username, int year, int month)
     {
-        // 1. Получаем список всех доступных архивов (ссылок на месяцы) [cite: 848]
         var archives = await GetArchivesAsync(username);
     
-        // 2. Формируем строку поиска для нужного года и месяца. 
         // API Chess.com использует формат: .../games/YYYY/MM 
-        var monthString = month.ToString("D2"); // Чтобы 1 превратилось в "01"
+        var monthString = month.ToString("D2");
         var archiveUrlSuffix = $"{year}/{monthString}";
 
-        // 3. Находим нужный архив в списке 
         var targetArchive = archives.FirstOrDefault(a => a.EndsWith(archiveUrlSuffix));
 
         if (targetArchive == null)
         {
-            // Если за этот месяц игр не было, возвращаем пустой список
             return [];
         }
 
-        // 4. Загружаем и возвращаем партии из этого архива 
-        // Метод GetRapidGamesFromArchiveAsync уже содержит фильтрацию по "rapid" [из вашего примера]
         return await GetRapidGamesFromArchiveAsync(targetArchive);
     }
 

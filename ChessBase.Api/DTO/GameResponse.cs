@@ -6,7 +6,7 @@ public record GameResponse(
     string Pgn, 
     string TimeClass, 
     long EndTime, 
-    string Uuid, // Тот самый уникальный ID для базы
+    string Uuid,
     PlayerInfo White, 
     PlayerInfo Black
     //EcoCode`
