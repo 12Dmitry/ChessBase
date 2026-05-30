@@ -24,9 +24,7 @@ var builder = Host.CreateApplicationBuilder(args);
 // все try catch и finally выводим в файл + статический логгер для старта
 builder.Services.AddSerilog((services, configuration) => configuration
     .ReadFrom.Configuration(builder.Configuration)
-    .ReadFrom.Services(services) // Позволяет Serilog использовать сервисы из DI
-    .Enrich.FromLogContext()
-    .WriteTo.Console());
+    .ReadFrom.Services(services));
 
 // 1. Data Layer
 builder.Services.AddDbContext<ChessDbContext>(options =>
