@@ -4,18 +4,29 @@ using ChessBase;
 using Microsoft.Extensions.Hosting;
 using ChessBase.Application.Services;
 using ChessBase.Api;
+using ChessBase.Api.Handlers;
 using ChessBase.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 
+// todo add logs revert it from console.WL
 //todo api с соблюдением всех ограничений и кеширования
 //todo check dto and upload full context
-// todo add logs revert it from console.WL
 // todo Write Test
-//todo messag queue?
+//todo add Message Broker?
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// 0. Инициализируем статический логгер Serilog (нужен для логов до старта DI контейнера)
+// Это заменит стандартный ILoggerFactory на Serilog
+// все try catch и finally выводим в файл + статический логгер для старта
+builder.Services.AddSerilog((services, configuration) => configuration
+    .ReadFrom.Configuration(builder.Configuration)
+    .ReadFrom.Services(services) // Позволяет Serilog использовать сервисы из DI
+    .Enrich.FromLogContext()
+    .WriteTo.Console());
 
 // 1. Data Layer
 builder.Services.AddDbContext<ChessDbContext>(options =>
@@ -29,10 +40,12 @@ builder.Services.AddDbContext<ChessDbContext>(options =>
     ));
 
 // 2. Infrastructure (Api Client)
-builder.Services.AddHttpClient<IChessComClient, ChessComClient>(client => {
+builder.Services.AddTransient<ChessComLoggingHandler>();
+builder.Services.AddHttpClient<IChessComClient, ChessComClient>(client =>
+{
     client.BaseAddress = new Uri("https://api.chess.com/pub/");
     client.DefaultRequestHeaders.Add("User-Agent", "ChessBase-App");
-});
+}).AddHttpMessageHandler<ChessComLoggingHandler>(); // закрепляется за клиентом, живет столько сколько он
 
 // 3. Analyz Layer
 builder.Services.AddTransient<GameAnalyzer>();

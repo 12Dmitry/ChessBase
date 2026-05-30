@@ -2,6 +2,7 @@ using ChessBase.Api;
 using ChessBase.Api.DTO;
 using ChessBase.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace ChessBase.Application.Services;
@@ -10,6 +11,7 @@ public class GameSyncService(
     IChessComClient apiClient,
     GameAnalyzer analyzer,
     ChessDbContext dbContext,
+    ILogger<GameSyncService> logger,
     IOptions<ChessComOptions> options)
 {
     public async Task SyncGamesAsync(string? username = null)
@@ -22,7 +24,7 @@ public class GameSyncService(
                 "Username was not provided. Pass it as a method argument or configure it in appsettings.json.");
         }
 
-        Console.WriteLine($"[Sync] Starting synchronization for: {targetUsername}...");
+        logger.LogInformation("Starting synchronization for: {Username}...", targetUsername);
         
         var apiGames = await apiClient.GetPlayerGamesAsync(targetUsername, DateTime.Now.Year, DateTime.Now.Month);
 
@@ -34,9 +36,7 @@ public class GameSyncService(
             }
             catch (Exception e)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"[Error] Failed to process game {apiGame.Uuid}: {e.Message}");
-                Console.ResetColor();
+                logger.LogError(e, "Failed to process game {GameId}", apiGame.Uuid);
                 
                 dbContext.ChangeTracker.Clear();
             }
@@ -48,7 +48,7 @@ public class GameSyncService(
         if (await dbContext.Games.AnyAsync(g => g.ExternalId == apiGame.Uuid))
             return;
             
-        Console.WriteLine($"[Sync] Analyzing game {apiGame.Uuid}...");
+        logger.LogDebug("Analyzing game {gameId}...", apiGame.Uuid);
 
         var report = await analyzer.AnalyzePgnAsync(apiGame.Pgn, targetUsername);
 

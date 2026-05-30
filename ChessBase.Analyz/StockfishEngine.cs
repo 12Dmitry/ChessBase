@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace ChessBase;
 
-public class StockfishEngine : IEngine, IDisposable
+public class StockfishEngine : IEngine, IDisposable // todo find a way how to log it mb decorator?
 {
     private readonly Process _process;
     private readonly StreamWriter _input;
