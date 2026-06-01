@@ -4,7 +4,10 @@ namespace ChessBase.Data;
 
 public class ChessDbContext : DbContext
 {
-    public DbSet<Game> Games { get; set; }
+    public ChessDbContext(DbContextOptions<ChessDbContext> options) : base(options)
+    {
+    }
+    public DbSet<GameReport> Games { get; set; }
     public DbSet<MoveAnalysis> Moves { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder options)
@@ -16,7 +19,7 @@ public class ChessDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Game>()
+        modelBuilder.Entity<GameReport>()
             .HasIndex(g => g.ExternalId)
             .IsUnique();
     }

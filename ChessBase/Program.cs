@@ -11,12 +11,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
-// todo add logs revert it from console.WL
-//todo api с соблюдением всех ограничений и кеширования
-//todo check dto and upload full context
-// todo Write Test
-//todo add Message Broker?
-
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddMemoryCache();
@@ -24,7 +18,6 @@ builder.Services.AddMemoryCache();
 // 0. todo Инициализируем статический логгер Serilog (нужен для логов до старта DI контейнера)
 // все try catch и finally выводим в файл + статический логгер для старта
 // Это заменит стандартный ILoggerFactory на Serilog
-// все try catch и finally выводим в файл + статический логгер для старта
 builder.Services.AddSerilog((services, configuration) => configuration
     .ReadFrom.Configuration(builder.Configuration)
     .ReadFrom.Services(services));
