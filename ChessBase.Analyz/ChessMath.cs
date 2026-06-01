@@ -1,20 +1,28 @@
-﻿namespace ChessBase;
+﻿using ChessBase.Data;
+
+namespace ChessBase;
 
 public static class ChessMath
 {
-    // Константа 'k' из модели Lichess/Chess.com для логистической регрессии
     private const double K = 0.00368208;
 
-    /// <summary>
-    /// Рассчитывает общую точность партии на основе списка ходов.
-    /// </summary>
-    public static double CalculateGameAccuracy(IEnumerable<EvalMove> moves) => // todo mb to int
-        Math.Round(moves?.DefaultIfEmpty().Average(m => m.Accuracy.MoveAccuracyToWhite) ?? 0, 2); //todo if emty if it possible add log at least
-
-    public static Accuracy GetAccuracy(double result, double prevResult)
+    public static double CalculateGameAccuracy(IEnumerable<EvalMove> moves)
     {
-        var winProbBefore = ToWinProbability(prevResult);
-        var winProbAfter = ToWinProbability(result);
+        var evalMoves = moves as EvalMove[] ?? moves.ToArray();
+        if (!evalMoves.Any()) return 0;
+        
+        return Math.Round(evalMoves.Average(m => m.Accuracy.MoveAccuracyToWhite), 2);
+    }
+
+    public static Accuracy CalculateMoveAccuracy(double actualMoveEval, double bestMoveEval, bool userIsWhite)
+    {
+        // Приводим оценку к перспективе пользователя (положительное число = пользователю хорошо)
+        var bestForUser = userIsWhite ? bestMoveEval : -bestMoveEval;
+        var actualForUser = userIsWhite ? actualMoveEval : -actualMoveEval;
+
+        var winProbBefore = ToWinProbability(bestForUser);
+        var winProbAfter = ToWinProbability(actualForUser);
+
         return new Accuracy
         {
             MoveAccuracyToWhite = CalculateAccuracy(winProbBefore, winProbAfter),
@@ -22,12 +30,9 @@ public static class ChessMath
         };
     }
 
-    /// <summary>
-    /// Классификация хода по потере вероятности победы
-    /// </summary>
     private static MoveCategory GetMoveCategory(double winProbBefore, double winProbAfter)
     {
-        var loss = (winProbBefore - winProbAfter) / 100.0; // In fractions from 0 to 1
+        var loss = (winProbBefore - winProbAfter) / 100.0; 
 
         return loss switch
         {
@@ -40,25 +45,17 @@ public static class ChessMath
         };
     }
 
-    /// <summary>
-    /// Перевод оценки движка (центипашки) в вероятность победы (0..100)
-    /// </summary>
     private static double ToWinProbability(double cp)
     {
-        // Ограничиваем значение для стабильности функции [4]
         var clampedCp = Math.Clamp(cp, -1000, 1000);
         return 50 + 50 * (2 / (1 + Math.Exp(-K * clampedCp)) - 1);
     }
 
-    /// <summary>
-    /// Расчет точности хода на основе падения вероятности победы
-    /// </summary>
-    /// <param name="winProbBefore">Вероятность при лучшем ходе движка</param>
-    /// <param name="winProbAfter">Вероятность после вашего реального хода</param>
     private static double CalculateAccuracy(double winProbBefore, double winProbAfter)
     {
+        // Берем разницу. Если ход лучше, чем ожидал движок на текущей глубине (бывает редко), loss будет < 0, берем 0.
         var diff = Math.Max(0, winProbBefore - winProbAfter);
-        // Формула нормализации точности
+        
         var accuracy = 103.1668 * Math.Exp(-0.04354 * diff) - 3.1669;
         return Math.Clamp(accuracy, 0, 100);
     }

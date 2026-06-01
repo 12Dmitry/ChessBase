@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace ChessBase;
 
-public class StockfishEngine : IEngine, IDisposable // todo find a way how to log it mb decorator?
+public class StockfishEngine : IEngine, IDisposable 
 {
     private readonly Process _process;
     private readonly StreamWriter _input;
@@ -51,8 +51,8 @@ public class StockfishEngine : IEngine, IDisposable // todo find a way how to lo
         var lastInfo = "";
         while ((line = await _output.ReadLineAsync())!= null)
         {
-            if (line.StartsWith("info depth")) lastInfo = line; // Сохраняем последнюю строку с оценкой
-            if (line.StartsWith("bestmove")) break; // Когда движок выдал лучший ход, анализ текущей позиции окончен
+            if (line.StartsWith("info depth")) lastInfo = line; 
+            if (line.StartsWith("bestmove")) break; 
         }
         return lastInfo + line;
     }
