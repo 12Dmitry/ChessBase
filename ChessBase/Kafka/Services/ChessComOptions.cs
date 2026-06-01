@@ -1,4 +1,4 @@
-﻿namespace ChessBase.Application.Services;
+﻿namespace ChessBase.Kafka.Services;
 
 public class ChessComOptions
 {

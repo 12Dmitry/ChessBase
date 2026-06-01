@@ -78,7 +78,7 @@ public class GameAnalyzer(IEngine engine)
         if (rawResult == "1/2-1/2") return "Draw";
         if (rawResult == "1-0") return isWhite ? "Win" : "Loss";
         if (rawResult == "0-1") return isWhite ? "Loss" : "Win";
-        return "Unknown"; // todo Enum?
+        return "Unknown";
     }
 
     private List<EvalMove> ConvertToEvalMoves(List<EvalResultToWhiteScore> moves, bool userIsWhite)

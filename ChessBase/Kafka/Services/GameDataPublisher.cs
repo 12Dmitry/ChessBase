@@ -5,16 +5,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace ChessBase.Application.Services;
+namespace ChessBase.Kafka.Services;
 
-public class GameSyncService(
+public class GameDataPublisher(
     IChessComClient apiClient,
-    GameAnalyzer analyzer,
-    ChessDbContext dbContext,
-    ILogger<GameSyncService> logger,
+    IMessagePublisher messagePublisher,
+    IOptions<KafkaOptions> kafkaOptions,
+    ChessDbContext dbContext, // могу оставить так т.к. GameDataPublisher вызовается внутри scoped
+    ILogger<GameDataPublisher> logger,
     IOptions<ChessComOptions> options)
 {
-    public async Task SyncGamesAsync(string? username = null)
+    public async Task TakeAndPlaceCurrentGamesToMonthAsync(string? username = null)
     {
         var targetUsername = username ?? options.Value.Username;
 
@@ -25,7 +26,7 @@ public class GameSyncService(
         }
 
         logger.LogInformation("Starting synchronization for: {Username}...", targetUsername);
-        
+
         var apiGames = await apiClient.GetPlayerGamesAsync(targetUsername, DateTime.Now.Year, DateTime.Now.Month);
 
         foreach (var apiGame in apiGames)
@@ -37,7 +38,7 @@ public class GameSyncService(
             catch (Exception e)
             {
                 logger.LogError(e, "Failed to process game {GameId}", apiGame.Uuid);
-                
+
                 dbContext.ChangeTracker.Clear();
             }
         }
@@ -47,24 +48,18 @@ public class GameSyncService(
     {
         if (await dbContext.Games.AnyAsync(g => g.ExternalId == apiGame.Uuid))
             return;
-            
-        logger.LogDebug("Analyzing game {gameId}...", apiGame.Uuid);
 
-        var report = await analyzer.AnalyzePgnAsync(apiGame.Pgn, targetUsername);
-
-        var game = new Game 
-        { 
-            ExternalId = apiGame.Uuid,
-            PgnText = apiGame.Pgn,
-            TotalAccuracy = report.TotalAccuracy,
-            OpeningName = report.OpeningName,
-            EcoCode = report.EcoCode,
-            Result = report.ResultForUser,
-            PlayedAt = DateTimeOffset.FromUnixTimeSeconds(apiGame.EndTime).UtcDateTime,
-            Moves = report.Moves 
+        var gameEvent = new GameFetchedEvent
+        {
+            Url =  apiGame.Url,
+            Uuid = apiGame.Uuid,
+            Pgn = apiGame.Pgn,
+            TargetUsername = targetUsername,
+            EndTimeSeconds = apiGame.EndTimeSeconds
         };
-        
-        dbContext.Games.Add(game);
-        await dbContext.SaveChangesAsync();
+
+        await messagePublisher.PublishAsync(kafkaOptions.Value.TopicGamesToAnalyze, gameEvent);
+
+        logger.LogInformation("Game {Id} published to Kafka for analysis {@gameEvent}", apiGame.Uuid, gameEvent);
     }
 }
