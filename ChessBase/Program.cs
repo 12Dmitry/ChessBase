@@ -19,7 +19,10 @@ using Serilog;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-// 0. Инициализируем статический логгер Serilog (нужен для логов до старта DI контейнера)
+builder.Services.AddMemoryCache();
+
+// 0. todo Инициализируем статический логгер Serilog (нужен для логов до старта DI контейнера)
+// все try catch и finally выводим в файл + статический логгер для старта
 // Это заменит стандартный ILoggerFactory на Serilog
 // все try catch и finally выводим в файл + статический логгер для старта
 builder.Services.AddSerilog((services, configuration) => configuration
@@ -42,9 +45,8 @@ builder.Services.AddTransient<ChessComLoggingHandler>();
 builder.Services.AddHttpClient<IChessComClient, ChessComClient>(client =>
 {
     client.BaseAddress = new Uri("https://api.chess.com/pub/");
-    client.DefaultRequestHeaders.Add("User-Agent", "ChessBase-App");
-}).AddHttpMessageHandler<ChessComLoggingHandler>(); // закрепляется за клиентом, живет столько сколько он
-
+    client.DefaultRequestHeaders.Add("User-Agent", "ChessBaseApp/1.0 (contact: dim4ik121313@gmail.com)");
+}).AddHttpMessageHandler<ChessComLoggingHandler>();
 // 3. Analyz Layer
 builder.Services.AddTransient<GameAnalyzer>();
 builder.Services.AddTransient<IEngine, StockfishEngine>();
